@@ -1,5 +1,6 @@
 // This file was automatically generated from files in src/ directory.
 
+/*! Licensed under MIT License - http://github.com/impress/impress.js */
 /**
  * impress.js
  *
@@ -9,7 +10,7 @@
  *
  * Copyright 2011-2012 Bartek Szopka (@bartaz), 2016-2018 Henrik Ingo (@henrikingo)
  *
- * Released under the MIT and GPL Licenses.
+ * Released under the MIT License.
  *
  * ------------------------------------------------
  *  author:  Bartek Szopka, Henrik Ingo
@@ -704,7 +705,7 @@
                     // can do about it?
                     order: k < 0.7 ? currentState.rotate.order : nextStep.rotate.order
                 },
-                scale: interpolate( currentState.scale, nextScale, k )
+                scale: interpolate( currentState.scale * windowScale, nextScale, k )
             };
 
             css( root, {
@@ -1304,6 +1305,16 @@
         // triggered for the first slide, so that's where code flow continues.
     }, false );
 
+    document.addEventListener( "impress:autoplay:pause", function( event ) {
+        status = "paused";
+        reloadTimeout( event );
+    }, false );
+
+    document.addEventListener( "impress:autoplay:play", function( event ) {
+        status = "playing";
+        reloadTimeout( event );
+    }, false );
+
     // If default autoplay time was defined in the presentation root, or
     // in this step, set timeout.
     var reloadTimeout = function( event ) {
@@ -1320,7 +1331,7 @@
         reloadTimeout( event );
     }, false );
 
-    document.addEventListener( "impress:substep:stepleaveaborted", function( event ) {
+    document.addEventListener( "impress:substep:enter", function( event ) {
         reloadTimeout( event );
     }, false );
 
@@ -1341,13 +1352,6 @@
     /*** Toolbar plugin integration *******************************************/
     var status = "not clicked";
     var toolbarButton = null;
-
-    // Copied from core impress.js. Good candidate for moving to a utilities collection.
-    var triggerEvent = function( el, eventName, detail ) {
-        var event = document.createEvent( "CustomEvent" );
-        event.initCustomEvent( eventName, true, true, detail );
-        el.dispatchEvent( event );
-    };
 
     var makeDomElement = function( html ) {
         var tempDiv = document.createElement( "div" );
@@ -1407,7 +1411,7 @@
             }
         } );
 
-        triggerEvent( toolbar, "impress:toolbar:appendChild",
+        util.triggerEvent( toolbar, "impress:toolbar:appendChild",
                       { group: 10, element: toolbarButton } );
     };
 
@@ -1416,7 +1420,7 @@
 /**
  * Blackout plugin
  *
- * Press Ctrl+b to hide all slides, and Ctrl+b again to show them.
+ * Press b or . to hide all slides, and b or . again to show them.
  * Also navigating to a different slide will show them again (impress:stepleave).
  *
  * Copyright 2014 @Strikeskids
@@ -1429,6 +1433,9 @@
 
     var canvas = null;
     var blackedOut = false;
+    var util = null;
+    var root = null;
+    var api = null;
 
     // While waiting for a shared library of utilities, copying these 2 from main impress.js
     var css = function( el, props ) {
@@ -1477,6 +1484,7 @@
                 display: "block"
             } );
             blackedOut = false;
+            util.triggerEvent( root, "impress:autoplay:play", {} );
         }
     };
 
@@ -1488,18 +1496,23 @@
                 display: ( blackedOut = !blackedOut ) ? "none" : "block"
             } );
             blackedOut = true;
+            util.triggerEvent( root, "impress:autoplay:pause", {} );
         }
     };
 
     // Wait for impress.js to be initialized
     document.addEventListener( "impress:init", function( event ) {
-        var api = event.detail.api;
-        var root = event.target;
+        api = event.detail.api;
+        util = api.lib.util;
+        root = event.target;
         canvas = root.firstElementChild;
         var gc = api.lib.gc;
+        var util = api.lib.util;
 
         gc.addEventListener( document, "keydown", function( event ) {
-            if ( event.keyCode === 66 ) {
+
+            // Accept b or . -> . is sent by presentation remote controllers
+            if ( event.keyCode === 66 || event.keyCode === 190 ) {
                 event.preventDefault();
                 if ( !blackedOut ) {
                     blackout();
@@ -1510,7 +1523,9 @@
         }, false );
 
         gc.addEventListener( document, "keyup", function( event ) {
-            if ( event.keyCode === 66 ) {
+
+            // Accept b or . -> . is sent by presentation remote controllers
+            if ( event.keyCode === 66 || event.keyCode === 190 ) {
                 event.preventDefault();
             }
         }, false );
@@ -1628,7 +1643,7 @@
         api = event.detail.api;
         var gc = api.lib.gc;
 
-        var selectors = [ "input[type=text]", "textarea", "select", "[contenteditable=true]" ];
+        var selectors = [ "input", "textarea", "select", "[contenteditable=true]" ];
         for ( var selector of selectors ) {
             var elements = document.querySelectorAll( selector );
             if ( !elements ) {
@@ -1649,6 +1664,64 @@
 
     document.addEventListener( "impress:stepleave", function() {
         document.activeElement.blur();
+    }, false );
+
+} )( document );
+
+
+/**
+ * Fullscreen plugin
+ *
+ * Press F5 to enter fullscreen and ESC to exit fullscreen mode.
+ *
+ * Copyright 2019 @giflw
+ * Released under the MIT license.
+ */
+/* global document */
+
+( function( document ) {
+    "use strict";
+
+    function enterFullscreen() {
+        var elem = document.documentElement;
+        if ( !document.fullscreenElement ) {
+            elem.requestFullscreen();
+        }
+    }
+
+    function exitFullscreen() {
+        if ( document.fullscreenElement ) {
+            document.exitFullscreen();
+        }
+    }
+
+    // Wait for impress.js to be initialized
+    document.addEventListener( "impress:init", function( event ) {
+        var api = event.detail.api;
+        var root = event.target;
+        var gc = api.lib.gc;
+        var util = api.lib.util;
+
+        gc.addEventListener( document, "keydown", function( event ) {
+
+            // 116 (F5) is sent by presentation remote controllers
+            if ( event.code === "F5" ) {
+                event.preventDefault();
+                enterFullscreen();
+                util.triggerEvent( root.querySelector( ".active" ), "impress:steprefresh" );
+            }
+
+            // 27 (Escape) is sent by presentation remote controllers
+            if ( event.key === "Escape" || event.key === "F5" ) {
+                event.preventDefault();
+                exitFullscreen();
+                util.triggerEvent( root.querySelector( ".active" ), "impress:steprefresh" );
+            }
+        }, false );
+
+        util.triggerEvent( document, "impress:help:add",
+            { command: "F5 / ESC", text: "Fullscreen: Enter / Exit", row: 200 } );
+
     }, false );
 
 } )( document );
@@ -1893,7 +1966,7 @@
 
     document.addEventListener( "keyup", function( event ) {
 
-        if ( event.keyCode === 72 ) { // "h"
+        if ( event.keyCode === 72 || event.keyCode === 191 ) { // "h" || "?"
             event.preventDefault();
             toggleHelp();
         }
@@ -3203,7 +3276,6 @@
                 if ( event.shiftKey ) {
                     switch ( event.keyCode ) {
                         case 9: // Shift+tab
-                        case 32: // Shift+space
                             api.prev();
                             break;
                     }
@@ -3649,7 +3721,10 @@
                 el: el,
                 x: el.getAttribute( "data-x" ),
                 y: el.getAttribute( "data-y" ),
-                z: el.getAttribute( "data-z" )
+                z: el.getAttribute( "data-z" ),
+                relX: el.getAttribute( "data-rel-x" ),
+                relY: el.getAttribute( "data-rel-y" ),
+                relZ: el.getAttribute( "data-rel-z" )
             } );
             var step = computeRelativePositions( el, prev );
 
@@ -3671,20 +3746,27 @@
             var steps = startingState[ root.id ];
             var step;
             while ( step = steps.pop() ) {
-                if ( step.x === null ) {
-                    step.el.removeAttribute( "data-x" );
-                } else {
-                    step.el.setAttribute( "data-x", step.x );
+                // Reset x/y/z in cases where this plugin has changed it.
+                if ( step.relX !== null ) {
+                    if ( step.x === null ) {
+                        step.el.removeAttribute( "data-x" );
+                    } else {
+                        step.el.setAttribute( "data-x", step.x );
+                    }
                 }
-                if ( step.y === null ) {
-                    step.el.removeAttribute( "data-y" );
-                } else {
-                    step.el.setAttribute( "data-y", step.y );
+                if ( step.relY !== null ) {
+                    if ( step.y === null ) {
+                        step.el.removeAttribute( "data-y" );
+                    } else {
+                        step.el.setAttribute( "data-y", step.y );
+                    }
                 }
-                if ( step.z === null ) {
-                    step.el.removeAttribute( "data-z" );
-                } else {
-                    step.el.setAttribute( "data-z", step.z );
+                if ( step.relZ !== null ) {
+                    if ( step.z === null ) {
+                        step.el.removeAttribute( "data-z" );
+                    } else {
+                        step.el.setAttribute( "data-z", step.z );
+                    }
                 }
             }
             delete startingState[ root.id ];
@@ -3885,8 +3967,11 @@
             if ( el ) {
 
                 // Send a message to others, that we aborted a stepleave event.
-                // Autoplay will reload itself from this, as there won't be a stepenter event now.
                 triggerEvent( step, "impress:substep:stepleaveaborted",
+                              { reason: "next", substep: el } );
+
+                // Autoplay uses this for reloading itself
+                triggerEvent( step, "impress:substep:enter",
                               { reason: "next", substep: el } );
 
                 // Returning false aborts the stepleave event
@@ -3898,6 +3983,10 @@
             if ( el ) {
                 triggerEvent( step, "impress:substep:stepleaveaborted",
                               { reason: "prev", substep: el } );
+
+                triggerEvent( step, "impress:substep:leave",
+                              { reason: "prev", substep: el } );
+
                 return false;
             }
         }
@@ -3959,7 +4048,6 @@
     }, false );
 
 } )( document, window );
-
 
 /**
  * Support for swipe and tap on touch devices

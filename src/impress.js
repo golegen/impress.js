@@ -1,3 +1,4 @@
+/*! Licensed under MIT License - http://github.com/impress/impress.js */
 /**
  * impress.js
  *
@@ -7,7 +8,7 @@
  *
  * Copyright 2011-2012 Bartek Szopka (@bartaz), 2016-2018 Henrik Ingo (@henrikingo)
  *
- * Released under the MIT and GPL Licenses.
+ * Released under the MIT License.
  *
  * ------------------------------------------------
  *  author:  Bartek Szopka, Henrik Ingo
@@ -702,7 +703,7 @@
                     // can do about it?
                     order: k < 0.7 ? currentState.rotate.order : nextStep.rotate.order
                 },
-                scale: interpolate( currentState.scale, nextScale, k )
+                scale: interpolate( currentState.scale * windowScale, nextScale, k )
             };
 
             css( root, {
